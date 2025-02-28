@@ -5,8 +5,7 @@ include 'config.php'; // Ensure database connection is included
 $userCount = 0;
 $stylistCount = 0;
 $appointmentCount = 0;
-$topStylistName = "N/A";
-$topStylistRating = "N/A";
+$topStylists = [];
 $upcomingAppointments = [];
 
 // Fetch total users
@@ -27,65 +26,67 @@ if ($appointmentRow = mysqli_fetch_assoc($appointmentQuery)) {
     $appointmentCount = $appointmentRow['total'];
 }
 
-// Fetch top-rated stylist
-$topStylistQuery = mysqli_query($conn, "SELECT stylist_name, rating FROM stylists ORDER BY rating DESC LIMIT 1");
-if ($topStylistRow = mysqli_fetch_assoc($topStylistQuery)) {
-    $topStylistName = $topStylistRow['stylist_name'];
-    $topStylistRating = $topStylistRow['rating'];
+// Fetch top-rated stylists (Top 3)
+$topStylistQuery = mysqli_query($conn, "SELECT stylist_name, rating FROM stylists ORDER BY rating DESC LIMIT 3");
+while ($row = mysqli_fetch_assoc($topStylistQuery)) {
+    $topStylists[] = $row;
 }
 
 // Fetch upcoming appointments
-$appointmentListQuery = mysqli_query($conn, "
-    SELECT users.name, appointments.appointment_date, appointments.appointment_time 
-    FROM appointments 
-    JOIN users ON appointments.customer_id = users.id 
-    WHERE appointment_date >= CURDATE() 
-    ORDER BY appointment_date ASC 
-    LIMIT 5
-");
-
-while ($row = mysqli_fetch_assoc($appointmentListQuery)) {
-    $upcomingAppointments[] = $row;
+$appointments_query = "SELECT a.id, u.name AS customer_name, s.stylist_name AS stylist_name, 
+                              a.appointment_date, a.service, a.status
+                       FROM appointments a
+                       JOIN users u ON a.customer_id = u.id
+                       JOIN stylists s ON a.stylist_id = s.id
+                       ORDER BY rating DESC LIMIT 3";
+$appointments = $conn->query($appointments_query);
+if (!$appointments) {
+    die("Error fetching appointments: " . $conn->error);
 }
 ?>
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
-    <link rel="stylesheet" href="dashboard.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <?php include 'sidebar.php'; ?>
+    <link rel="stylesheet" href="sidebar.css">
     <style>
- body {
+        body {
             font-family: Arial, sans-serif;
             background-color: #f4f4f9;
             margin: 0;
-            padding: 0;
+            display: flex;
         }
-
-        h1 {
-            color: #333;
+        .sidebar {
+            width: 250px;
         }
-
         .dashboard-container {
-            padding: 40px;
-            width: 100%;
+            flex: 1;
+            max-width: calc(100% - 270px);
+            margin-left: auto;
             background: white;
+            padding: 20px;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            position: relative;
         }
-
+        .notification {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 24px;
+            cursor: pointer;
+        }
         .stats {
             display: flex;
             justify-content: space-between;
             gap: 20px;
             flex-wrap: wrap;
         }
-
         .stat-box {
             flex: 1;
             padding: 20px;
@@ -97,140 +98,94 @@ while ($row = mysqli_fetch_assoc($appointmentListQuery)) {
             color: white;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
-
-        .users {
-            background: linear-gradient(135deg, #007bff, #0056b3);
+        .users { background: #007bff; }
+        .stylists { background: #28a745; }
+        .appointments { background: #dc3545; }
+        .stat-box i { font-size: 40px; margin-bottom: 10px; }
+        .main-content {
+            display: flex;
+            gap: 20px;
+            margin-top: 30px;
         }
-
-        .stylists {
-            background: linear-gradient(135deg, #28a745, #1e7e34);
+        /* Updated both containers to have the same flex value */
+        .chart-container,
+        .top-stylist {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            min-height: 400px;
         }
-
-        .appointments {
-            background: linear-gradient(135deg, #dc3545, #c82333);
+        .top-stylist ul {
+            list-style: none;
+            padding: 0;
         }
-
-        .stat-box i {
-            font-size: 40px;
-            margin-bottom: 10px;
+        .top-stylist li {
+            font-size: 18px;
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-
-        .users i {
-            color: #003c80;
+        .top-stylist i {
+            margin-right: 10px;
         }
-
-        .stylists i {
-            color: #145a32;
+        .appointments-section {
+            margin-top: 30px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
-
-        .appointments i {
-            color: #7b1818;
-        }
-
-.chart-container {
-    background: white;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    max-width: 600px;
-    height: 400px;
-    margin: auto;
-}
-
-.info-section {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-top: 30px;
-}
-
-.info-box {
-    background: white;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    border: 1px solid #ddd;
-}
-
-.info-box h2 {
-    margin-bottom: 15px;
-    color: #333;
-    font-size: 20px; /* Larger font size for headings */
-}
-
-.info-box p, .info-box ul {
-    font-size: 16px;
-    color: #555;
-}
-
-.info-box ul {
-    padding-left: 20px; /* Indent list items for better readability */
-}
-
-.info-box i {
-    margin-right: 8px; /* Space between icon and text */
-}
-
-ul {
-    list-style: none;
-    padding: 0;
-}
-
-li {
-    margin: 10px 0;
-    font-size: 16px;
-    color: #34495e;
-}
-
-/* Responsive Fix */
-@media (max-width: 768px) {
-    .stats, .info-section { flex-direction: column; }
-    .dashboard-container { width: 100%; padding: 20px; }
-}
-
-
     </style>
 </head>
 <body>
-    <?php include 'sidebar.php'; ?>
-    <link rel="stylesheet" href="sidebar.css">
-
     <div class="dashboard-container">
+        <i class="fas fa-bell notification"></i>
         <h1><i class="fas fa-chart-line"></i> Admin Dashboard</h1>
-
         <div class="stats">
-            <div class="stat-box users"><i class="fas fa-users"></i> Total Users: <span><?php echo $userCount; ?></span></div>
-            <div class="stat-box stylists"><i class="fas fa-user-tie"></i> Total Stylists: <span><?php echo $stylistCount; ?></span></div>
-            <div class="stat-box appointments"><i class="fas fa-calendar-check"></i> Total Appointments: <span><?php echo $appointmentCount; ?></span></div>
+            <div class="stat-box users"><i class="fas fa-users"></i> Users: <span><?php echo $userCount; ?></span></div>
+            <div class="stat-box stylists"><i class="fas fa-user-tie"></i> Stylists: <span><?php echo $stylistCount; ?></span></div>
+            <div class="stat-box appointments"><i class="fas fa-calendar-check"></i> Appointments: <span><?php echo $appointmentCount; ?></span></div>
         </div>
-
-        <div class="chart-container">
-            <canvas id="chart"></canvas>
+        <div class="main-content">
+            <div class="chart-container">
+                <canvas id="chart"></canvas>
+            </div>
+            <div class="top-stylist">
+                <h2><i class="fas fa-star"></i> Top Rated Stylists</h2>
+                <ul>
+                    <?php foreach ($topStylists as $stylist): ?>
+                        <li><i class="fas fa-user-circle"></i><strong><?php echo htmlspecialchars($stylist['stylist_name']); ?></strong> - <span><?php echo htmlspecialchars($stylist['rating']); ?>★</span></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
         </div>
-
-        <div class="info-section">
-    <div class="info-box top-stylist">
-        <h2><i class="fas fa-star"></i> Top Rated Stylist</h2>
-        <p><i class="fas fa-user"></i> Name: <strong><?php echo $topStylistName; ?></strong></p>
-        <p><i class="fas fa-star-half-alt"></i> Rating: <strong><?php echo $topStylistRating; ?></strong></p>
+        <div class="appointments-section">
+            <h2>Upcoming Appointments</h2>
+            <table>
+                <tr>
+                    <th>Customer Name</th>
+                    <th>Stylist Name</th>
+                    <th>Appointment Date</th>
+                    <th>Service</th>
+                    <th>Status</th>
+                </tr>
+                <?php while ($row = $appointments->fetch_assoc()): ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($row['customer_name']); ?></td>
+                    <td><?php echo htmlspecialchars($row['stylist_name']); ?></td>
+                    <td><?php echo htmlspecialchars($row['appointment_date']); ?></td>
+                    <td><?php echo htmlspecialchars($row['service']); ?></td>
+                    <td><?php echo htmlspecialchars($row['status']); ?></td>
+                </tr>
+                <?php endwhile; ?>
+            </table>
+        </div>
     </div>
-
-    <div class="info-box upcoming-appointments">
-        <h2><i class="fas fa-calendar-alt"></i> Upcoming Appointments</h2>
-        <ul>
-            <?php foreach ($upcomingAppointments as $appointment): ?>
-                <li><i class="fas fa-clock"></i> <?php echo $appointment['appointment_date'] . ' at ' . $appointment['appointment_time'] . ' - ' . $appointment['name']; ?></li>
-            <?php endforeach; ?>
-        </ul>
-        </div>
-      </div>
-    </div>
-
     <script>
-        document.addEventListener("DOMContentLoaded", function () {
+        document.addEventListener("DOMContentLoaded", function() {
             let ctx = document.getElementById("chart").getContext("2d");
             new Chart(ctx, {
                 type: "bar",
@@ -239,20 +194,12 @@ li {
                     datasets: [{
                         label: "Count",
                         data: [<?php echo $userCount; ?>, <?php echo $stylistCount; ?>, <?php echo $appointmentCount; ?>],
-                        backgroundColor: ["#007bff", "#28a745", "#dc3545"],
-                        borderColor: ["#0056b3", "#1e7e34", "#c82333"],
-                        borderWidth: 1
+                        backgroundColor: ["#007bff", "#28a745", "#dc3545"]
                     }]
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: { beginAtZero: true }
-                    },
-                    plugins: {
-                        legend: { display: false }
-                    }
+                    maintainAspectRatio: false
                 }
             });
         });

@@ -1,68 +1,45 @@
 <?php
-// Enable strict error reporting for debugging
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-
 session_start();
+include 'config.php';
 
-// Debugging: Check the request method
-if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-    die("Invalid request. Please submit the form.");
+// Check if form is submitted
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $admin_username = $_SESSION['admin_username']; // Get admin username
+
+    // Fetch the new password from the form
+    $new_password = trim($_POST['password']);
+    $confirm_password = trim($_POST['confirm_password']);
+
+    // Check if password fields are empty
+    if (empty($new_password) || empty($confirm_password)) {
+        die("⚠ Error: Password fields cannot be empty.");
+    }
+
+    // Check if passwords match
+    if ($new_password !== $confirm_password) {
+        die("⚠ Error: Passwords do not match.");
+    }
+
+    // ✅ Fix: Properly update the password
+    $update_query = "UPDATE admin SET password = ? WHERE username = ?";
+    $stmt = $conn->prepare($update_query);
+    
+    if (!$stmt) {
+        die("⚠ Error preparing statement: " . $conn->error);
+    }
+
+    $stmt->bind_param("ss", $new_password, $admin_username);
+
+    if ($stmt->execute()) {
+        echo "✅ Password updated successfully!";
+        session_destroy(); // Logout after password change
+        header("Location: login.php");
+        exit();
+    } else {
+        die("⚠ Error updating password: " . $stmt->error);
+    }
 }
-
-// Check if admin session exists
-if (!isset($_SESSION['admin_username'])) {
-    die("Session expired. Please log in again.");
-}
-
-// Get username from session
-$username = $_SESSION['admin_username'];
-
-// Get new password from form input
-$new_password = $_POST['password'] ?? '';
-$confirm_password = $_POST['confirm_password'] ?? '';
-
-// Validate password fields
-if (empty($new_password) || empty($confirm_password)) {
-    die("Both password fields are required.");
-}
-
-if ($new_password !== $confirm_password) {
-    die("Passwords do not match.");
-}
-
-// Include database configuration
-$config_path = __DIR__ . '/config.php';
-if (!file_exists($config_path)) {
-    die("Configuration file not found.");
-}
-include $config_path;
-
-// Ensure database connection exists
-if (!isset($conn) || $conn->connect_error) {
-    die("Database connection error.");
-}
-
-// Update password in admin table (without hashing)
-$stmt = $conn->prepare("UPDATE admin SET password = ? WHERE admin_username = ?");
-$stmt->bind_param("ss", $new_password, $username);
-$stmt->execute();
-
-// Check if the password was updated
-if ($stmt->affected_rows > 0) {
-    echo "Password reset successful. Please log in with your new password.";
-} else {
-    echo "Error: Password was not updated. Please try again.";
-}
-
-// Close the database connection
-$stmt->close();
-$conn->close();
-
-// Destroy session after password reset
-unset($_SESSION['admin_username']);
-session_destroy();
 ?>
-
 
 
 <!DOCTYPE html>

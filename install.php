@@ -5,44 +5,9 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 // Define the config file path
 $config_path = __DIR__ . '/config.php';
 
-// Check if config.php exists before including
-if (!file_exists($config_path)) {
-    die(json_encode(["status" => "error", "message" => "Configuration file not found"]));
-}
-
-// Include database configuration
-include $config_path;
-
-// Ensure the database connection is established
-if (!isset($conn) || $conn->connect_error) {
-    die(json_encode(["status" => "error", "message" => "Unable to connect to the database"]));
-}
-
 echo "<h3>🚀 Setting up the Database...</h3>";
 
-// Create Users Table (For Customers & Admin)<?php
-// Start error reporting
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-
-// Define the config file path
-$config_path = __DIR__ . '/config.php';
-
-// Check if config.php exists before including
-if (!file_exists($config_path)) {
-    die(json_encode(["status" => "error", "message" => "Configuration file not found"]));
-}
-
-// Include database configuration
-include $config_path;
-
-// Ensure the database connection is established
-if (!isset($conn) || $conn->connect_error) {
-    die(json_encode(["status" => "error", "message" => "Unable to connect to the database"]));
-}
-
-echo "<h3>🚀 Setting up the Database...</h3>";
-
-// Create Users Table (For Customers & Admin)
+// Create Users Table 
 $usersTable = "CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_name VARCHAR(100) NOT NULL,
